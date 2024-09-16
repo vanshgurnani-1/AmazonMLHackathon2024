@@ -2,17 +2,14 @@ import os
 import re
 import requests
 from PIL import Image, ImageEnhance, ImageFilter
+import pytesseract
 import pandas as pd
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 from sklearn.metrics import f1_score
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import LabelEncoder
-from easyocr import Reader
 from src.constants import allowed_units, unit_full_name_map, entity_unit_map
-
-# Initialize EasyOCR Reader
-reader = Reader(['en'])
 
 # Directory to store downloaded images
 download_dir = "downloaded_images"
@@ -20,7 +17,7 @@ os.makedirs(download_dir, exist_ok=True)
 
 # Preprocess image only when needed (based on image quality)
 def preprocess_image(image, enhance=False):
-    image = image.convert('L')
+    image = image.convert('L')  # Convert to grayscale
     if enhance:
         contrast_enhancer = ImageEnhance.Contrast(image)
         image = contrast_enhancer.enhance(2.0)
@@ -42,16 +39,12 @@ def download_image(image_url, group_id):
         print(f"Error downloading image {image_url}: {e}")
         return None
 
-# Function to extract text from an image file using EasyOCR
+# Function to extract text from an image file using Tesseract OCR
 def extract_text_from_image(image_path, enhance=False):
     try:
         image = Image.open(image_path)
         image = preprocess_image(image, enhance=enhance)
-        # Convert image to a format supported by EasyOCR
-        image = image.convert('RGB')
-        text_results = reader.readtext(image)
-        # Extract and concatenate text from all detected regions
-        text = ' '.join([result[1] for result in text_results])
+        text = pytesseract.image_to_string(image)
         return text
     except Exception as e:
         print(f"An error occurred while extracting text from {image_path}: {e}")
@@ -114,7 +107,7 @@ def predictor(image_link, group_id, entity_name, index):
     # Download the image
     image_path = download_image(image_link, group_id)
     if not image_path:
-        return {"index": index, "prediction": None}
+        return {"index": index, "group_id": group_id, "prediction": None}
     
     # Extract text from the image
     text = extract_text_from_image(image_path, enhance=False)
@@ -124,7 +117,7 @@ def predictor(image_link, group_id, entity_name, index):
     # Extract the highest value unit from the text using entity name
     highest_unit = extract_highest_unit(entity_name, text)
     
-    return {"index": index, "prediction": highest_unit}
+    return {"index": index, "group_id": group_id, "prediction": highest_unit}
 
 if __name__ == "__main__":
     # Load the dataset from the CSV
@@ -173,9 +166,10 @@ if __name__ == "__main__":
     y_pred = y_pred.astype(str)
 
     # Compute F1 Score
-    f1 = f1_score(y_true, y_pred, average='weighted')  # Use 'binary', 'micro', 'macro', or 'weighted'
+    f1 = f1_score(y_true, y_pred, average='weighted')
 
     print(f"F1 Score: {f1:.2f}")
 
-    # Optionally, save results to CSV
+    # Optionally, save results to CSV (excluding group_id)
+    results_df.drop(columns=['group_id'], inplace=True)  # Drop group_id from final output
     results_df.to_csv('results_with_f1_score.csv', index=False)
