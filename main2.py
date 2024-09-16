@@ -114,7 +114,7 @@ def predictor(image_link, group_id, entity_name, index):
     # Download the image
     image_path = download_image(image_link, group_id)
     if not image_path:
-        return {"index": index, "group_id": group_id, "prediction": None}
+        return {"index": index, "prediction": None}
     
     # Extract text from the image
     text = extract_text_from_image(image_path, enhance=False)
@@ -124,7 +124,7 @@ def predictor(image_link, group_id, entity_name, index):
     # Extract the highest value unit from the text using entity name
     highest_unit = extract_highest_unit(entity_name, text)
     
-    return {"index": index, "group_id": group_id, "prediction": highest_unit}
+    return {"index": index, "prediction": highest_unit}
 
 if __name__ == "__main__":
     # Load the dataset from the CSV
